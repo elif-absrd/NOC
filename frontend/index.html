@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOC/CSOC Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f4f4;
+    }
+    video {
+      background-color: #000;
+      border: 1px solid #ccc;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Video Stream Dashboard</h1>
+  <video id="video" autoplay playsinline controls width="640" height="360"></video>
+  <div id="status">Status: Connecting...</div>
+
+  <script>
+    if (flvjs.isSupported()) {
+      const videoElement = document.getElementById('video');
+      const statusElement = document.getElementById('status');
+
+      // Use HTTP FLV stream URL from NMS
+      const flvPlayer = flvjs.createPlayer({
+        type: 'flv',
+        isLive: true,
+        url: 'http://localhost:8000/live/stream.flv', // Corrected from ws:// to http://
+        enableWorker: true,           // Better performance with Web Worker
+        enableStashBuffer: false,     // Low latency for live streaming
+        stashInitialSize: 0,          // Minimize buffering
+        autoCleanupSourceBuffer: true,// Prevent memory buildup
+        liveBufferLatencyChasing: true,// Keep latency low
+        liveBufferLatencyMax: 0.5     // Max 0.5s latency
+      });
+
+      flvPlayer.attachMediaElement(videoElement);
+      flvPlayer.load();
+      flvPlayer.play();
+
+      // Event Handlers
+      flvPlayer.on(flvjs.Events.ERROR, (err, errDetail) => {
+        console.error('FLV.js Error:', err, errDetail);
+        statusElement.textContent = `Status: Error - ${err} (${errDetail})`;
+      });
+
+      flvPlayer.on(flvjs.Events.METADATA_ARRIVED, (metadata) => {
+        console.log('FLV Metadata:', metadata);
+        statusElement.textContent = 'Status: Stream metadata received';
+      });
+
+      flvPlayer.on(flvjs.Events.STATISTICS_INFO, (stats) => {
+        console.log('FLV Stats:', stats);
+        statusElement.textContent = `Status: Playing (Buffer: ${stats.currentBufferLength}s, Speed: ${stats.speed}KB/s)`;
+      });
+
+      flvPlayer.on(flvjs.Events.LOADING_COMPLETE, () => {
+        console.log('Loading complete');
+        statusElement.textContent = 'Status: Loading complete';
+      });
+
+      // Handle page unload to clean up
+      window.addEventListener('beforeunload', () => {
+        flvPlayer.destroy();
+      });
+    } else {
+      console.error('FLV.js is not supported in this browser');
+      document.getElementById('status').textContent = 'Status: FLV.js not supported';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@elastic/elasticsearch": "^8.17.1",
+    "node-media-server": "^4.0.12"
+  }
+}
