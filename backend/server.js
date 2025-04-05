@@ -7,9 +7,13 @@ const app = express();
 const elasticClient = new Client({
     node: 'http://localhost:9200',
     auth: {
-        apiKey: 'dGYyTXVaVUJCOXF0b19mQVN3RFY6LU4wUmh4SHBScXUtM2hpS3NDNlNoZw=='
+        apiKey: 'SEVXRkFwWUI0djd4WFhaYlNPX0w6aVJjODRQa19TVEdKQ0lhOXczcXkyZw==' // Your superuser API key
     }
 });
+
+elasticClient.ping()
+    .then(() => console.log('Elasticsearch connected'))
+    .catch(err => console.error('Elasticsearch connection failed:', err));
 
 const mediaRoot = path.join(__dirname, 'media');
 
@@ -53,14 +57,14 @@ nms.on('postPublish', async (id, streamPath, args) => {
     streamStartTimes.set(id.id || id, new Date());
     
     const log = { 
-        timestamp: new Date().toISOString(), 
+        '@timestamp': new Date().toISOString(), // Changed from 'timestamp' to '@timestamp'
         event: 'stream_started', 
         stream_id: id.id || id, 
         path: actualStreamPath, 
         args: args ? { ...args } : {}
     };
     try {
-        const response = await elasticClient.index({ index: 'streaming_logs', body: log });
+        const response = await elasticClient.index({ index: 'streaming_logs_v2', body: log }); // Changed to new index
         console.log(`Stream ${id.id || id} started and indexed:`, response);
     } catch (error) {
         console.error('Elasticsearch error (start):', {
@@ -89,7 +93,7 @@ nms.on('donePublish', async (id, streamPath, args) => {
     console.log(`[donePublish] Stream ${id.id || id} ended at ${endTime.toISOString()} - Path: ${actualStreamPath} - Duration: ${duration}s - Reason: Connection closed`);
     
     const log = { 
-        timestamp: endTime.toISOString(), 
+        '@timestamp': endTime.toISOString(), // Changed from 'timestamp' to '@timestamp'
         event: 'stream_ended', 
         stream_id: id.id || id, 
         path: actualStreamPath, 
@@ -97,7 +101,7 @@ nms.on('donePublish', async (id, streamPath, args) => {
         args: args ? { ...args } : {}
     };
     try {
-        const response = await elasticClient.index({ index: 'streaming_logs', body: log });
+        const response = await elasticClient.index({ index: 'streaming_logs_v2', body: log }); // Changed to new index
         console.log(`Stream ${id.id || id} ended and indexed:`, response);
     } catch (error) {
         console.error('Elasticsearch error (end):', {
@@ -121,8 +125,8 @@ nms.on('error', (err, context) => {
 
 nms.run();
 
-app.listen(3000, () => {
-    console.log('Backend server running on http://localhost:3000');
+app.listen(3001, () => {
+    console.log('Backend server running on http://localhost:3001');
 });
 
 app.get('/health', (req, res) => {
