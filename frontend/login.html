@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - CCTV Surveillance</title>
+    <style>
+        body { font-family: 'Roboto', sans-serif; background-color: #121212; color: #f0f0f0; margin: 20px; }
+        input, button { margin: 10px 0; padding: 8px; }
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #2980b9; }
+    </style>
+</head>
+<body>
+    <h1>Login</h1>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <h2>Client Signup</h2>
+    <input type="text" id="signupUsername" placeholder="Username">
+    <input type="password" id="signupPassword" placeholder="Password">
+    <button onclick="signup()">Signup as Client</button>
+    <p id="message"></p>
+
+    <script>
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            try {
+                const response = await fetch('http://localhost:3001/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                localStorage.setItem('token', data.token);
+                const decoded = JSON.parse(atob(data.token.split('.')[1]));
+                if (decoded.role === 'admin') window.location.href = 'admin.html';
+                else if (decoded.role === 'client' && decoded.approved) window.location.href = 'client.html';
+                else document.getElementById('message').innerText = 'Awaiting admin approval';
+            } catch (error) {
+                document.getElementById('message').innerText = error.message;
+            }
+        }
+
+        async function signup() {
+            const username = document.getElementById('signupUsername').value;
+            const password = document.getElementById('signupPassword').value;
+            try {
+                const response = await fetch('http://localhost:3001/signup-client', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                document.getElementById('message').innerText = data.message || data.error;
+            } catch (error) {
+                document.getElementById('message').innerText = error.message;
+            }
+        }
+    </script>
+</body>
+</html>

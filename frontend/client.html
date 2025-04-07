@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client - CCTV Surveillance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <style>
+        /* Copy the entire <style> block from original index.html here */
+        :root {
+            --bg-dark: #121212;
+            --bg-medium: #1e1e1e;
+            --bg-light: #2a2a2a;
+            --text-primary: #f0f0f0;
+            --text-secondary: #a0a0a0;
+            --accent: #3498db;
+            --alert: #e74c3c;
+            --success: #2ecc71;
+            --border: #444;
+            --timeline-bg: #333;
+            --timeline-progress: #3498db;
+        }
+        /* ... rest of the styles unchanged ... */
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CCTV Surveillance System - Client</h1>
+        <div>
+            <button onclick="logout()" style="background-color: #3498db; color: white; border: none; padding: 6px 12px; cursor: pointer;">Logout</button>
+            <span id="master-status">System Status: Online</span>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <div>Location: Main Building</div>
+        <div class="system-time" id="system-time"></div>
+    </div>
+    
+    <div class="main-content">
+        <div class="flex-container" id="grid-container">
+            <!-- Camera cells unchanged -->
+            <div class="camera-cell" data-cam-id="1" onclick="enterFullscreen(1)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 01 - Main Entrance</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video1" autoplay playsinline muted></video>
+            </div>
+            <div class="camera-cell" data-cam-id="2" onclick="enterFullscreen(2)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 02 - Lobby</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video2" autoplay playsinline muted></video>
+            </div>
+            <div class="camera-cell" data-cam-id="3" onclick="enterFullscreen(3)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 03 - Hallway A</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video3" autoplay playsinline muted></video>
+            </div>
+            <div class="camera-cell" data-cam-id="4" onclick="enterFullscreen(4)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 04 - Parking Lot</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video4" autoplay playsinline muted></video>
+            </div>
+            <div class="camera-cell" data-cam-id="5" onclick="enterFullscreen(5)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 05 - Server Room</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video5" autoplay playsinline muted></video>
+            </div>
+            <div class="camera-cell" data-cam-id="6" onclick="enterFullscreen(6)">
+                <div class="camera-label"><span class="recording-dot"></span>CAM 06 - Rear Exit</div>
+                <div class="camera-status">LIVE</div>
+                <video id="video6" autoplay playsinline muted></video>
+            </div>
+        </div>
+        
+        <div id="fullscreen-view" class="fullscreen-mode hidden">
+            <!-- Fullscreen view unchanged -->
+            <div class="fullscreen-header">
+                <div class="fullscreen-title">
+                    <span id="fullscreen-camera-title">Camera View</span>
+                </div>
+                <button class="back-button" id="back-button">
+                    <span>Back to Grid</span>
+                </button>
+            </div>
+            <div class="fullscreen-video-container">
+                <video id="fullscreen-video" autoplay controls playsinline></video>
+            </div>
+            <div class="timeline-container">
+                <div class="time-display">
+                    <span id="current-time">00:00:00</span>
+                    <span id="total-time">00:10:00</span>
+                </div>
+                <div class="timeline" id="timeline">
+                    <div class="timeline-progress" id="timeline-progress"></div>
+                    <div class="timeline-marker" id="timeline-marker"></div>
+                </div>
+                <div class="timeline-controls">
+                    <button class="control-button" onclick="jumpBackward(30)">-30s</button>
+                    <button class="control-button" onclick="togglePlayPause()" id="play-pause-btn">Pause</button>
+                    <button class="control-button" onclick="jumpForward(30)">+30s</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'login.html';
+
+        // Verify client role
+        fetch('http://localhost:3001/health', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => {
+            if (res.status === 403 || res.status === 401) window.location.href = 'login.html';
+        });
+
+        // Original script unchanged below
+        function updateSystemTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const dateString = now.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            document.getElementById('system-time').textContent = `${dateString} ${timeString}`;
+        }
+        setInterval(updateSystemTime, 1000);
+        updateSystemTime();
+
+        const players = {};
+        let activeCamera = null;
+        let fullscreenPlayer = null;
+        let timelineInterval = null;
+
+        const cameraLabels = {
+            1: "CAM 01 - Main Entrance",
+            2: "CAM 02 - Lobby",
+            3: "CAM 03 - Hallway A",
+            4: "CAM 04 - Parking Lot",
+            5: "CAM 05 - Server Room",
+            6: "CAM 06 - Rear Exit"
+        };
+
+        document.getElementById('back-button').addEventListener('click', exitFullscreen);
+
+        if (flvjs.isSupported()) {
+            function createPlayer(videoId, url) {
+                const videoElement = document.getElementById(videoId);
+                const flvPlayer = flvjs.createPlayer({
+                    type: 'flv',
+                    isLive: true,
+                    url: url,
+                    enableWorker: true,
+                    enableStashBuffer: false,
+                    stashInitialSize: 0,
+                    autoCleanupSourceBuffer: true,
+                    liveBufferLatencyChasing: true,
+                    liveBufferLatencyMax: 0.5
+                });
+                flvPlayer.attachMediaElement(videoElement);
+                flvPlayer.load();
+                flvPlayer.play();
+                flvPlayer.on(flvjs.Events.ERROR, (err, errDetail) => {
+                    console.error(`${videoId} Error:`, err, errDetail);
+                    if (videoElement.parentElement) {
+                        const cameraStatus = videoElement.parentElement.querySelector('.camera-status');
+                        if (cameraStatus) {
+                            cameraStatus.innerHTML = `ERROR`;
+                            cameraStatus.style.color = 'var(--alert)';
+                        }
+                    }
+                });
+                return flvPlayer;
+            }
+
+            for (let i = 1; i <= 6; i++) {
+                players[`video${i}`] = createPlayer(`video${i}`, 'http://localhost:8000/live/stream.flv');
+            }
+        } else {
+            console.error('FLV.js is not supported in this browser');
+            document.getElementById('master-status').textContent = 'System Status: Browser Not Compatible';
+            document.getElementById('master-status').style.color = 'var(--alert)';
+        }
+
+        function enterFullscreen(cameraId) {
+            activeCamera = cameraId;
+            document.getElementById('grid-container').classList.add('hidden');
+            document.getElementById('fullscreen-view').classList.remove('hidden');
+            document.getElementById('fullscreen-camera-title').textContent = cameraLabels[cameraId];
+            const fullscreenVideo = document.getElementById('fullscreen-video');
+            if (fullscreenPlayer) {
+                fullscreenPlayer.destroy();
+                fullscreenPlayer = null;
+            }
+            fullscreenPlayer = flvjs.createPlayer({
+                type: 'flv',
+                isLive: true,
+                url: 'http://localhost:8000/live/stream.flv',
+                enableWorker: true,
+                enableStashBuffer: false,
+                stashInitialSize: 0,
+                autoCleanupSourceBuffer: true,
+                liveBufferLatencyChasing: true,
+                liveBufferLatencyMax: 0.5
+            });
+            fullscreenPlayer.attachMediaElement(fullscreenVideo);
+            fullscreenPlayer.load();
+            fullscreenPlayer.play();
+            setupTimeline(fullscreenVideo);
+        }
+
+        function exitFullscreen() {
+            console.log("Exit fullscreen called");
+            if (timelineInterval) {
+                clearInterval(timelineInterval);
+                timelineInterval = null;
+            }
+            document.getElementById('fullscreen-view').classList.add('hidden');
+            document.getElementById('grid-container').classList.remove('hidden');
+            if (fullscreenPlayer) {
+                fullscreenPlayer.pause();
+                fullscreenPlayer.unload();
+                fullscreenPlayer.detachMediaElement();
+                fullscreenPlayer.destroy();
+                fullscreenPlayer = null;
+            }
+            activeCamera = null;
+        }
+
+        function setupTimeline(videoElement) {
+            const timeline = document.getElementById('timeline');
+            const progress = document.getElementById('timeline-progress');
+            const marker = document.getElementById('timeline-marker');
+            const currentTimeDisplay = document.getElementById('current-time');
+            const totalTimeDisplay = document.getElementById('total-time');
+            const fakeDuration = 10 * 60;
+            if (timelineInterval) clearInterval(timelineInterval);
+            timelineInterval = setInterval(() => {
+                const currentFakeTime = (Date.now() / 1000) % fakeDuration;
+                const percent = (currentFakeTime / fakeDuration) * 100;
+                progress.style.width = `${percent}%`;
+                marker.style.left = `${percent}%`;
+                currentTimeDisplay.textContent = formatTime(currentFakeTime);
+            }, 1000);
+            timeline.addEventListener('click', (e) => {
+                const rect = timeline.getBoundingClientRect();
+                const clickPosition = (e.clientX - rect.left) / rect.width;
+                const seekTime = fakeDuration * clickPosition;
+                progress.style.width = `${clickPosition * 100}%`;
+                marker.style.left = `${clickPosition * 100}%`;
+                currentTimeDisplay.textContent = formatTime(seekTime);
+                console.log(`Seeking to ${formatTime(seekTime)}`);
+            });
+        }
+
+        function togglePlayPause() {
+            const btn = document.getElementById('play-pause-btn');
+            if (fullscreenPlayer) {
+                if (btn.textContent.trim() === 'Pause') {
+                    fullscreenPlayer.pause();
+                    btn.textContent = 'Play';
+                } else {
+                    fullscreenPlayer.play();
+                    btn.textContent = 'Pause';
+                }
+            }
+        }
+
+        function jumpForward(seconds) {
+            console.log(`Jumping forward ${seconds} seconds`);
+            const currentTime = document.getElementById('current-time');
+            const currentSeconds = parseInt(currentTime.textContent.split(':')[2]) + 
+                                  parseInt(currentTime.textContent.split(':')[1]) * 60 + 
+                                  parseInt(currentTime.textContent.split(':')[0]) * 3600;
+            const newTime = Math.min(currentSeconds + seconds, 10 * 60);
+            currentTime.textContent = formatTime(newTime);
+            const percent = (newTime / (10 * 60)) * 100;
+            document.getElementById('timeline-progress').style.width = `${percent}%`;
+            document.getElementById('timeline-marker').style.left = `${percent}%`;
+        }
+
+        function jumpBackward(seconds) {
+            console.log(`Jumping backward ${seconds} seconds`);
+            const currentTime = document.getElementById('current-time');
+            const currentSeconds = parseInt(currentTime.textContent.split(':')[2]) + 
+                                  parseInt(currentTime.textContent.split(':')[1]) * 60 + 
+                                  parseInt(currentTime.textContent.split(':')[0]) * 3600;
+            const newTime = Math.max(currentSeconds - seconds, 0);
+            currentTime.textContent = formatTime(newTime);
+            const percent = (newTime / (10 * 60)) * 100;
+            document.getElementById('timeline-progress').style.width = `${percent}%`;
+            document.getElementById('timeline-marker').style.left = `${percent}%`;
+        }
+
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        window.addEventListener('beforeunload', () => {
+            Object.values(players).forEach(player => {
+                if (player) player.destroy();
+            });
+            if (fullscreenPlayer) fullscreenPlayer.destroy();
+        });
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
