@@ -6,28 +6,275 @@
     <title>Client - CCTV Surveillance Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
-        /* Copy the entire <style> block from original index.html here */
         :root {
-            --bg-dark: #121212;
-            --bg-medium: #1e1e1e;
-            --bg-light: #2a2a2a;
-            --text-primary: #f0f0f0;
-            --text-secondary: #a0a0a0;
-            --accent: #3498db;
-            --alert: #e74c3c;
-            --success: #2ecc71;
-            --border: #444;
-            --timeline-bg: #333;
-            --timeline-progress: #3498db;
+            --bg-dark: #0a0a0a;
+            --bg-medium: #1a1a1a;
+            --bg-light: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888;
+            --accent: #00bcd4;
+            --alert: #d32f2f;
+            --success: #388e3c;
+            --border: #333;
+            --timeline-bg: #2a2a2a;
+            --timeline-progress: #00bcd4;
         }
-        /* ... rest of the styles unchanged ... */
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: var(--bg-medium);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+
+        .header button {
+            background: var(--accent);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .header button:hover {
+            background: #008c9e;
+        }
+
+        .status-bar {
+            background: var(--bg-light);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .main-content {
+            padding: 1rem;
+        }
+
+        .flex-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            padding: 1rem 0;
+        }
+
+        .camera-cell {
+            background: var(--bg-medium);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            overflow: hidden;
+            transition: transform 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .camera-cell:hover {
+            transform: scale(1.02);
+            border-color: var(--accent);
+        }
+
+        .camera-label {
+            padding: 0.5rem;
+            background: rgba(0,0,0,0.7);
+            position: absolute;
+            top: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .recording-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--alert);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        .camera-status {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 0.5rem;
+            background: rgba(0,0,0,0.7);
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+            color: var(--success);
+        }
+
+        video {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: black;
+        }
+
+        .fullscreen-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-dark);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fullscreen-header {
+            background: var(--bg-medium);
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .fullscreen-title {
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+
+        .back-button {
+            background: var(--accent);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .back-button:hover {
+            background: #008c9e;
+        }
+
+        .fullscreen-video-container {
+            flex-grow: 1;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #fullscreen-video {
+            width: 100%;
+            height: 100%;
+            max-height: calc(100vh - 200px);
+            object-fit: contain;
+        }
+
+        .timeline-container {
+            background: var(--bg-light);
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline {
+            height: 10px;
+            background: var(--timeline-bg);
+            position: relative;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .timeline-progress {
+            height: 100%;
+            background: var(--timeline-progress);
+            width: 0;
+            border-radius: 5px;
+        }
+
+        .timeline-marker {
+            width: 6px;
+            height: 16px;
+            background: white;
+            position: absolute;
+            top: -3px;
+            transform: translateX(-50%);
+        }
+
+        .timeline-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .control-button {
+            background: var(--bg-medium);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.3rem 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .control-button:hover {
+            background: var(--accent);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .flex-container {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .fullscreen-header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>CCTV Surveillance System - Client</h1>
         <div>
-            <button onclick="logout()" style="background-color: #3498db; color: white; border: none; padding: 6px 12px; cursor: pointer;">Logout</button>
+            <button onclick="logout()">Logout</button>
             <span id="master-status">System Status: Online</span>
         </div>
     </div>
@@ -39,7 +286,6 @@
     
     <div class="main-content">
         <div class="flex-container" id="grid-container">
-            <!-- Camera cells unchanged -->
             <div class="camera-cell" data-cam-id="1" onclick="enterFullscreen(1)">
                 <div class="camera-label"><span class="recording-dot"></span>CAM 01 - Main Entrance</div>
                 <div class="camera-status">LIVE</div>
@@ -73,14 +319,11 @@
         </div>
         
         <div id="fullscreen-view" class="fullscreen-mode hidden">
-            <!-- Fullscreen view unchanged -->
             <div class="fullscreen-header">
                 <div class="fullscreen-title">
                     <span id="fullscreen-camera-title">Camera View</span>
                 </div>
-                <button class="back-button" id="back-button">
-                    <span>Back to Grid</span>
-                </button>
+                <button class="back-button" id="back-button">Back to Grid</button>
             </div>
             <div class="fullscreen-video-container">
                 <video id="fullscreen-video" autoplay controls playsinline></video>
@@ -107,14 +350,12 @@
         const token = localStorage.getItem('token');
         if (!token) window.location.href = 'login.html';
 
-        // Verify client role
-        fetch('http://localhost:3001/health', {
+        fetch('http://localhost:8000/health', { // Changed from 3001 to 8000
             headers: { 'Authorization': `Bearer ${token}` }
         }).then(res => {
             if (res.status === 403 || res.status === 401) window.location.href = 'login.html';
-        });
+        }).catch(err => console.error('Health check error:', err));
 
-        // Original script unchanged below
         function updateSystemTime() {
             const now = new Date();
             const timeString = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -144,15 +385,15 @@
             function createPlayer(videoId, url) {
                 const videoElement = document.getElementById(videoId);
                 const flvPlayer = flvjs.createPlayer({
-                    type: 'flv',
-                    isLive: true,
-                    url: url,
-                    enableWorker: true,
-                    enableStashBuffer: false,
-                    stashInitialSize: 0,
-                    autoCleanupSourceBuffer: true,
-                    liveBufferLatencyChasing: true,
-                    liveBufferLatencyMax: 0.5
+                    type: 'hls',
+    isLive: true,
+    url: 'http://localhost:8000/live/stream/index.m3u8',
+    enableWorker: true,
+    enableStashBuffer: true, // Enable buffering
+    stashInitialSize: 128, // Initial buffer size in KB
+    autoCleanupSourceBuffer: true,
+    liveBufferLatencyChasing: true,
+    liveBufferLatencyMax: 2.0
                 });
                 flvPlayer.attachMediaElement(videoElement);
                 flvPlayer.load();
@@ -162,7 +403,7 @@
                     if (videoElement.parentElement) {
                         const cameraStatus = videoElement.parentElement.querySelector('.camera-status');
                         if (cameraStatus) {
-                            cameraStatus.innerHTML = `ERROR`;
+                            cameraStatus.innerHTML = 'ERROR';
                             cameraStatus.style.color = 'var(--alert)';
                         }
                     }
@@ -170,8 +411,10 @@
                 return flvPlayer;
             }
 
+            // Use the same HLS stream for all cameras for now
+            const streamUrl = 'http://localhost:8000/live/stream/index.m3u8'; // Changed from .flv to .m3u8
             for (let i = 1; i <= 6; i++) {
-                players[`video${i}`] = createPlayer(`video${i}`, 'http://localhost:8000/live/stream.flv');
+                players[`video${i}`] = createPlayer(`video${i}`, streamUrl);
             }
         } else {
             console.error('FLV.js is not supported in this browser');
@@ -190,9 +433,9 @@
                 fullscreenPlayer = null;
             }
             fullscreenPlayer = flvjs.createPlayer({
-                type: 'flv',
+                type: 'hls', // Changed from 'flv' to 'hls'
                 isLive: true,
-                url: 'http://localhost:8000/live/stream.flv',
+                url: 'curl http://localhost:8000/live/stream/index.m3u8', // Changed from .flv to .m3u8
                 enableWorker: true,
                 enableStashBuffer: false,
                 stashInitialSize: 0,

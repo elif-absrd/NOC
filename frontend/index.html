@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CCTV Surveillance Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
   <style>
     :root {
       --bg-dark: #121212;
@@ -75,7 +75,6 @@
       overflow: hidden;
     }
     
-    /* Changed from grid to flex */
     .flex-container {
       display: flex;
       flex-wrap: wrap;
@@ -146,7 +145,6 @@
       object-fit: cover;
     }
     
-    /* Fullscreen mode */
     .fullscreen-mode {
       position: absolute;
       top: 0;
@@ -283,7 +281,6 @@
       100% { opacity: 1; }
     }
     
-    /* Responsive design */
     @media (max-width: 768px) {
       .camera-cell {
         flex-basis: calc(50% - 6px);
@@ -309,7 +306,6 @@
   </div>
   
   <div class="main-content">
-    <!-- Changed to flex container -->
     <div class="flex-container" id="grid-container">
       <!-- Camera 1 -->
       <div class="camera-cell" data-cam-id="1" onclick="enterFullscreen(1)">
@@ -417,7 +413,7 @@
     setInterval(updateSystemTime, 1000);
     updateSystemTime();
     
-    // Store FLV players
+    // Store HLS players
     const players = {};
     let activeCamera = null;
     let fullscreenPlayer = null;
@@ -436,30 +432,21 @@
     // Fixed back button event listener
     document.getElementById('back-button').addEventListener('click', exitFullscreen);
     
-    // Initialize FLV.js for all cameras
-    if (flvjs.isSupported()) {
+    // Initialize HLS.js for all cameras
+    if (Hls.isSupported()) {
       // Function to create players for each video element
-      function createPlayer(videoId, url) {
+      function createPlayer(videoId) {
         const videoElement = document.getElementById(videoId);
-        const flvPlayer = flvjs.createPlayer({
-          type: 'flv',
-          isLive: true,
-          url: url,
-          enableWorker: true,
-          enableStashBuffer: false,
-          stashInitialSize: 0,
-          autoCleanupSourceBuffer: true,
-          liveBufferLatencyChasing: true,
-          liveBufferLatencyMax: 0.5
+        const hls = new Hls({
+          liveSyncDuration: 0.5, // Adjust for low latency
+          autoStartLoad: true,
+          enableWorker: true
         });
         
-        flvPlayer.attachMediaElement(videoElement);
-        flvPlayer.load();
-        flvPlayer.play();
-        
-        // Event handlers
-        flvPlayer.on(flvjs.Events.ERROR, (err, errDetail) => {
-          console.error(`${videoId} Error:`, err, errDetail);
+        hls.loadSource('http://localhost:8000/live/stream/index.m3u8');
+        hls.attachMedia(videoElement);
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error(`${videoId} Error:`, event, data);
           if (videoElement.parentElement) {
             const cameraStatus = videoElement.parentElement.querySelector('.camera-status');
             if (cameraStatus) {
@@ -469,15 +456,26 @@
           }
         });
         
-        return flvPlayer;
+        return hls;
       }
       
       // Initialize all camera players
       for (let i = 1; i <= 6; i++) {
-        players[`video${i}`] = createPlayer(`video${i}`, 'http://localhost:8000/live/stream.flv');
+        players[`video${i}`] = createPlayer(`video${i}`);
+      }
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Fallback for native HLS support
+      function createNativePlayer(videoId) {
+        const videoElement = document.getElementById(videoId);
+        videoElement.src = 'http://localhost:8000/live/stream/index.m3u8';
+        videoElement.play().catch(error => console.error(`${videoId} Native Play Error:`, error));
+      }
+      
+      for (let i = 1; i <= 6; i++) {
+        createNativePlayer(`video${i}`);
       }
     } else {
-      console.error('FLV.js is not supported in this browser');
+      console.error('HLS is not supported in this browser');
       document.getElementById('master-status').textContent = 'System Status: Browser Not Compatible';
       document.getElementById('master-status').style.color = 'var(--alert)';
     }
@@ -501,47 +499,40 @@
         fullscreenPlayer = null;
       }
       
-      // Use the exact same configuration as the grid players for consistency
-      fullscreenPlayer = flvjs.createPlayer({
-        type: 'flv',
-        isLive: true,
-        url: 'http://localhost:8000/live/stream.flv',
-        enableWorker: true,
-        enableStashBuffer: false,
-        stashInitialSize: 0,
-        autoCleanupSourceBuffer: true,
-        liveBufferLatencyChasing: true,
-        liveBufferLatencyMax: 0.5
-      });
-      
-      fullscreenPlayer.attachMediaElement(fullscreenVideo);
-      fullscreenPlayer.load();
-      fullscreenPlayer.play();
+      if (Hls.isSupported()) {
+        fullscreenPlayer = new Hls({
+          liveSyncDuration: 0.5,
+          autoStartLoad: true,
+          enableWorker: true
+        });
+        fullscreenPlayer.loadSource('http://localhost:8000/live/stream/index.m3u8');
+        fullscreenPlayer.attachMedia(fullscreenVideo);
+      } else if (fullscreenVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        fullscreenVideo.src = 'http://localhost:8000/live/stream/index.m3u8';
+        fullscreenVideo.play().catch(error => console.error('Fullscreen Native Play Error:', error));
+      }
       
       // Setup timeline
       setupTimeline(fullscreenVideo);
     }
     
     function exitFullscreen() {
-      console.log("Exit fullscreen called"); // Debug log
+      console.log("Exit fullscreen called");
       
-      // Clear any active timeline interval
       if (timelineInterval) {
         clearInterval(timelineInterval);
         timelineInterval = null;
       }
       
-      // Hide fullscreen view and show grid
       document.getElementById('fullscreen-view').classList.add('hidden');
       document.getElementById('grid-container').classList.remove('hidden');
       
-      // Destroy fullscreen player
-      if (fullscreenPlayer) {
-        fullscreenPlayer.pause();
-        fullscreenPlayer.unload();
-        fullscreenPlayer.detachMediaElement();
+      if (fullscreenPlayer && Hls.isSupported()) {
         fullscreenPlayer.destroy();
         fullscreenPlayer = null;
+      } else if (document.getElementById('fullscreen-video').src) {
+        document.getElementById('fullscreen-video').pause();
+        document.getElementById('fullscreen-video').src = '';
       }
       
       activeCamera = null;
@@ -555,17 +546,13 @@
       const currentTimeDisplay = document.getElementById('current-time');
       const totalTimeDisplay = document.getElementById('total-time');
       
-      // Set a fake duration for the timeline (10 minutes for demonstration)
       const fakeDuration = 10 * 60; // 10 minutes in seconds
       
-      // Clear any existing interval
       if (timelineInterval) {
         clearInterval(timelineInterval);
       }
       
-      // Update timeline every second
       timelineInterval = setInterval(() => {
-        // For demonstration, we'll simulate progress
         const currentFakeTime = (Date.now() / 1000) % fakeDuration;
         const percent = (currentFakeTime / fakeDuration) * 100;
         
@@ -574,69 +561,60 @@
         currentTimeDisplay.textContent = formatTime(currentFakeTime);
       }, 1000);
       
-      // Click on timeline to seek
       timeline.addEventListener('click', (e) => {
         const rect = timeline.getBoundingClientRect();
         const clickPosition = (e.clientX - rect.left) / rect.width;
         const seekTime = fakeDuration * clickPosition;
         
-        // Update UI immediately
         progress.style.width = `${clickPosition * 100}%`;
         marker.style.left = `${clickPosition * 100}%`;
         currentTimeDisplay.textContent = formatTime(seekTime);
-        
-        // In a real implementation, you would seek the video here
         console.log(`Seeking to ${formatTime(seekTime)}`);
       });
     }
     
-    // Timeline control functions
     function togglePlayPause() {
       const btn = document.getElementById('play-pause-btn');
-      if (fullscreenPlayer) {
+      if (fullscreenPlayer && Hls.isSupported()) {
         if (btn.textContent.trim() === 'Pause') {
-          fullscreenPlayer.pause();
+          document.getElementById('fullscreen-video').pause();
           btn.textContent = 'Play';
         } else {
-          fullscreenPlayer.play();
+          document.getElementById('fullscreen-video').play().catch(error => console.error('Play Error:', error));
+          btn.textContent = 'Pause';
+        }
+      } else if (document.getElementById('fullscreen-video').src) {
+        if (btn.textContent.trim() === 'Pause') {
+          document.getElementById('fullscreen-video').pause();
+          btn.textContent = 'Play';
+        } else {
+          document.getElementById('fullscreen-video').play().catch(error => console.error('Play Error:', error));
           btn.textContent = 'Pause';
         }
       }
     }
     
     function jumpForward(seconds) {
-      // In a real implementation, you would seek the video here
       console.log(`Jumping forward ${seconds} seconds`);
-      
-      // For demo, we'll just update the display
       const currentTime = document.getElementById('current-time');
       const currentSeconds = parseInt(currentTime.textContent.split(':')[2]) + 
                             parseInt(currentTime.textContent.split(':')[1]) * 60 + 
                             parseInt(currentTime.textContent.split(':')[0]) * 3600;
-      
       const newTime = Math.min(currentSeconds + seconds, 10 * 60);
       currentTime.textContent = formatTime(newTime);
-      
-      // Update progress bar
       const percent = (newTime / (10 * 60)) * 100;
       document.getElementById('timeline-progress').style.width = `${percent}%`;
       document.getElementById('timeline-marker').style.left = `${percent}%`;
     }
     
     function jumpBackward(seconds) {
-      // In a real implementation, you would seek the video here
       console.log(`Jumping backward ${seconds} seconds`);
-      
-      // For demo, we'll just update the display
       const currentTime = document.getElementById('current-time');
       const currentSeconds = parseInt(currentTime.textContent.split(':')[2]) + 
                             parseInt(currentTime.textContent.split(':')[1]) * 60 + 
                             parseInt(currentTime.textContent.split(':')[0]) * 3600;
-      
       const newTime = Math.max(currentSeconds - seconds, 0);
       currentTime.textContent = formatTime(newTime);
-      
-      // Update progress bar
       const percent = (newTime / (10 * 60)) * 100;
       document.getElementById('timeline-progress').style.width = `${percent}%`;
       document.getElementById('timeline-marker').style.left = `${percent}%`;
@@ -649,16 +627,11 @@
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
     
-    // Handle page unload to clean up
     window.addEventListener('beforeunload', () => {
-      // Destroy all players
       Object.values(players).forEach(player => {
-        if (player) player.destroy();
+        if (player && Hls.isSupported()) player.destroy();
       });
-      
-      if (fullscreenPlayer) {
-        fullscreenPlayer.destroy();
-      }
+      if (fullscreenPlayer && Hls.isSupported()) fullscreenPlayer.destroy();
     });
   </script>
 </body>
