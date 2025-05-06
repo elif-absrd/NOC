@@ -152,4 +152,3 @@ curl http://localhost:8000
 
 ---
 
-Let me know if you'd like this exported as a `.md` file or pushed directly to a GitHub repo!
