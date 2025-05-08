@@ -40,7 +40,8 @@ let users = {
 const elasticClient = new Client({
     node: 'http://localhost:9200',
     auth: {
-        apiKey: 'SEVXRkFwWUI0djd4WFhaYlNPX0w6aVJjODRQa19TVEdKQ0lhOXczcXkyZw=='
+        // replace with your apikey here
+        apiKey: 'SEVXRkFwWUI0djd4WFhaYlNPX0w6aVJjODRQa19TVEdKQ0lhOXczcXkyZw='  
     }
 });
 
